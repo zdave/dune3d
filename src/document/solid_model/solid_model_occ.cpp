@@ -364,10 +364,13 @@ void SolidModelOcc::export_step(const std::filesystem::path &path) const
     auto assy_label = assy->NewShape();
     TDataStd_Name::Set(assy_label, ("PCA"));
 
-
     TDF_Label board_label = assy->AddShape(m_shape_acc, false);
     assy->AddComponent(assy_label, board_label, m_shape_acc.Location());
     TDataStd_Name::Set(board_label, "PCB");
+
+    auto color_tool = XCAFDoc_DocumentTool::ColorTool(doc->Main());
+    auto color = Quantity_Color{m_color.r, m_color.g, m_color.b, Quantity_TOC_sRGB};
+    color_tool->SetColor(board_label, color, XCAFDoc_ColorGen);
 
 #if OCC_VERSION_MAJOR >= 7 && OCC_VERSION_MINOR >= 2
     assy->UpdateAssemblies();
