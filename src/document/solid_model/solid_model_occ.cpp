@@ -4,17 +4,9 @@
 #include "document/group/group.hpp"
 #include "document/group/igroup_solid_model.hpp"
 #include "util/fs_util.hpp"
+#include "util/step_exporter.hpp"
 
-#include <Quantity_Color.hxx>
-#include <TDocStd_Document.hxx>
-#include <TopoDS.hxx>
-#include <TopoDS_Shape.hxx>
-#include <XCAFApp_Application.hxx>
 #include <Standard_Version.hxx>
-
-#include <XCAFDoc_ColorTool.hxx>
-#include <XCAFDoc_DocumentTool.hxx>
-#include <XCAFDoc_ShapeTool.hxx>
 
 #include <BRepMesh_IncrementalMesh.hxx>
 #include <BRep_Tool.hxx>
@@ -29,7 +21,6 @@
 #include <Poly_Triangulation.hxx>
 #include <TShort_Array1OfShortReal.hxx>
 #include <Precision.hxx>
-#include <Quantity_Color.hxx>
 #include <BRepTools_WireExplorer.hxx>
 #include <ShapeAnalysis_Edge.hxx>
 #include <BRepAdaptor_Curve.hxx>
@@ -46,8 +37,6 @@
 #include <glm/gtx/quaternion.hpp>
 
 #include <StlAPI_Writer.hxx>
-#include <STEPCAFControl_Writer.hxx>
-#include <APIHeaderSection_MakeHeader.hxx>
 
 
 #include <GCPnts_TangentialDeflection.hxx>
@@ -353,45 +342,16 @@ void SolidModelOcc::export_stl(const std::filesystem::path &path) const
     writer.Write(m_shape_acc, path_to_string(path).c_str());
 }
 
-
 void SolidModelOcc::export_step(const std::filesystem::path &path) const
 {
-    auto app = XCAFApp_Application::GetApplication();
-    Handle(TDocStd_Document) doc;
-    app->NewDocument("MDTV-XCAF", doc);
+    STEPExporter exporter;
+    add_to_step_exporter(exporter);
+    exporter.write(path);
+}
 
-    auto assy = XCAFDoc_DocumentTool::ShapeTool(doc->Main());
-    auto assy_label = assy->NewShape();
-    TDataStd_Name::Set(assy_label, ("PCA"));
-
-    TDF_Label board_label = assy->AddShape(m_shape_acc, false);
-    assy->AddComponent(assy_label, board_label, m_shape_acc.Location());
-    TDataStd_Name::Set(board_label, "PCB");
-
-    auto color_tool = XCAFDoc_DocumentTool::ColorTool(doc->Main());
-    auto color = Quantity_Color{m_color.r, m_color.g, m_color.b, Quantity_TOC_sRGB};
-    color_tool->SetColor(board_label, color, XCAFDoc_ColorGen);
-
-#if OCC_VERSION_MAJOR >= 7 && OCC_VERSION_MINOR >= 2
-    assy->UpdateAssemblies();
-#endif
-
-    STEPCAFControl_Writer writer;
-    writer.SetColorMode(Standard_True);
-    writer.SetNameMode(Standard_True);
-    if (Standard_False == writer.Transfer(doc, STEPControl_AsIs)) {
-        throw std::runtime_error("transfer error");
-    }
-
-    APIHeaderSection_MakeHeader hdr(writer.ChangeWriter().Model());
-    hdr.SetName(new TCollection_HAsciiString("Body"));
-    hdr.SetAuthorValue(1, new TCollection_HAsciiString("An Author"));
-    hdr.SetOrganizationValue(1, new TCollection_HAsciiString("A Company"));
-    hdr.SetOriginatingSystem(new TCollection_HAsciiString("Dune 3D"));
-    hdr.SetDescriptionValue(1, new TCollection_HAsciiString("Body"));
-
-    if (Standard_False == writer.Write(path_to_string(path).c_str()))
-        throw std::runtime_error("write error");
+void SolidModelOcc::add_to_step_exporter(STEPExporter &exporter) const
+{
+    exporter.add_component(m_shape_acc, m_color);
 }
 
 void SolidModelOcc::find_edges()
