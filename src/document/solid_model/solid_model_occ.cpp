@@ -65,7 +65,7 @@ namespace dune3d {
 
 class Triangulator {
 public:
-    Triangulator(const TopoDS_Shape &shape, face::Faces &faces);
+    Triangulator(const TopoDS_Shape &shape, const Color &color, face::Faces &faces);
 
 
 private:
@@ -76,17 +76,14 @@ private:
     bool processFace(const TopoDS_Face &face, const glm::dmat4 &mat = glm::dmat4(1));
 
     face::Faces &m_faces;
-    face::Color m_default_color;
+    face::Color m_color;
 };
 
-Triangulator::Triangulator(const TopoDS_Shape &shape, face::Faces &faces) : m_faces(faces)
+Triangulator::Triangulator(const TopoDS_Shape &shape, const Color &color, face::Faces &faces) : m_faces(faces)
 {
-    {
-        auto color = Preferences::get().canvas.appearance.get_color(ColorP::SOLID_MODEL);
-        m_default_color.r = color.r;
-        m_default_color.b = color.b;
-        m_default_color.g = color.g;
-    }
+    m_color.r = color.r;
+    m_color.b = color.b;
+    m_color.g = color.g;
     processNode(shape);
 }
 
@@ -149,7 +146,7 @@ bool Triangulator::processFace(const TopoDS_Face &face, const glm::dmat4 &mat_in
 
     m_faces.emplace_back();
     auto &face_out = m_faces.back();
-    face_out.color = m_default_color;
+    face_out.color = m_color;
     face_out.vertices.reserve(triangulation->NbNodes());
 
     std::map<face::Vertex, std::vector<size_t>> pts_map;
@@ -323,7 +320,7 @@ bool Triangulator::processNode(const TopoDS_Shape &shape)
 void SolidModelOcc::triangulate()
 {
     m_faces.clear();
-    Triangulator tri{m_shape_acc, m_faces};
+    Triangulator tri{m_shape_acc, m_color, m_faces};
 }
 
 inline double defaultAngularDeflection(double linearTolerance)
@@ -480,16 +477,15 @@ bool SolidModelOcc::update_acc_finish(const Document &doc, const Group &group)
 
 void SolidModelOcc::finish(const Document &doc, const Group &group)
 {
-    triangulate();
-    find_edges();
-
     auto body = group.find_body(doc).body;
     if (body.m_color) {
-        auto &c = *body.m_color;
-        for (auto &face : m_faces) {
-            face.color = {c.r, c.g, c.b};
-        }
+        m_color = *body.m_color;
+    } else {
+        m_color = Preferences::get().canvas.appearance.get_color(ColorP::SOLID_MODEL);
     }
+
+    triangulate();
+    find_edges();
 }
 
 } // namespace dune3d
